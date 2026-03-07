@@ -111,15 +111,18 @@ output "instance_ips" {
   value = aws_instance.k8s_nodes[*].public_ip
 }
 
-# Auto-generate Ansible Inventory
+# Auto-generate Combined Ansible Inventory (AWS + Azure)
 resource "local_file" "ansible_inventory" {
-  content = <<EOT
+  content  = <<EOT
 [master]
 ${aws_instance.k8s_nodes[0].public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 
 [workers]
 ${aws_instance.k8s_nodes[1].public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 ${aws_instance.k8s_nodes[2].public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[jenkins_azure]
+${azurerm_public_ip.jenkins_pip.ip_address} ansible_user=azureuser ansible_ssh_private_key_file=~/.ssh/id_rsa
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
