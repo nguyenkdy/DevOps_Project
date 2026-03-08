@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: nodejs-web-app
 spec:
-  replicas: 3 # Spreads across your 3 EC2 nodes
+  replicas: 5
   selector:
     matchLabels:
       app: nodejs-web
@@ -17,6 +17,7 @@ spec:
         image: khanhduy05/devops-project:latest 
         ports:
         - containerPort: 3000
+
 ---
 apiVersion: v1
 kind: Service
@@ -29,4 +30,4 @@ spec:
   ports:
     - port: 80
       targetPort: 3000
-      nodePort: 30080 # You can access your app at http://EC2-Public-IP:30080
+      nodePort: 30080
