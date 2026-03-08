@@ -3,7 +3,7 @@ const app = express();
 const port = 3000;
 
 app.get('/', (req, res) => {
-  res.send('<h1>Chào mừng đến với Web App High Availability cua Nguyen Khanh Duy trên Linux!</h1><p>Phiên bản: 1.0.0</p>');
+  res.send('<h1>Chào mừng đến với Web App High Availability cua Nguyen Khanh Duy trên Linux last!</h1><p>Phiên bản: 1.0.0</p>');
 });
 
 app.get('/health', (req, res) => {
