@@ -1,33 +1,35 @@
 pipeline {
     agent any
+
     environment {
+        // IDs phải khớp với thông tin bạn đã tạo trong Jenkins Credentials UI
         DOCKERHUB_CREDENTIALS = credentials('Duy200506') 
-        KUBECONFIG = credentials('k8s-secret')
-        // Thêm Credential ID của SonarQube Token bạn đã tạo
-        SONAR_TOKEN = credentials('sonarqube-token') 
-        DOCKER_USER = "khanhduy05"
-        IMAGE_NAME = "devops-project"
+        KUBECONFIG            = credentials('k8s-secret')
+        SONAR_TOKEN           = credentials('sonarqube-token') 
+        
+        DOCKER_USER           = "khanhduy05"
+        IMAGE_NAME            = "devops-project"
     }
+
     stages {
         stage('Install Dependencies') {
             steps {
-                // Cài đặt thư viện Node.js trước khi scan/build
+                // Sử dụng Node.js 20 đã cài để tải thư viện
                 sh "npm install"
             }
         }
 
         stage('Static Analysis (SonarQube)') {
             steps {
-                // Sử dụng Maven để thực hiện quét SonarQube cho dự án JS
-                // 'MySonarServer' là tên bạn đặt trong Manage Jenkins > System
+                // withSonarQubeEnv sẽ tự động nạp SONAR_HOST_URL từ cấu hình hệ thống
                 withSonarQubeEnv('MySonarServer') {
                     sh """
-                        mvn sonar:sonar \
+                        npx sonarqube-scanner \
                         -Dsonar.projectKey=nodejs-web-app \
                         -Dsonar.sources=. \
-                        -Dsonar.exclusions=node_modules/**,terraform/**,ansible/** \
                         -Dsonar.host.url=${SONAR_HOST_URL} \
-                        -Dsonar.login=${SONAR_TOKEN}
+                        -Dsonar.login=${SONAR_TOKEN} \
+                        -Dsonar.exclusions=node_modules/**,terraform/**,ansible/**
                     """
                 }
             }
@@ -35,7 +37,7 @@ pipeline {
 
         stage("Quality Gate") {
             steps {
-                // Pipeline sẽ dừng nếu SonarQube chấm "Fail"
+                // Đợi SonarQube phản hồi kết quả phân tích
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -51,6 +53,7 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
+                // Login và push image lên Docker Hub
                 sh "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"
                 sh "docker push $DOCKER_USER/$IMAGE_NAME:${env.BUILD_ID}"
                 sh "docker push $DOCKER_USER/$IMAGE_NAME:latest"
@@ -59,10 +62,18 @@ pipeline {
 
         stage('Deploy to AWS K8s') {
             steps {
+                // Deploy và ép K8s cập nhật image mới ngay lập tức
                 sh "kubectl --kubeconfig=$KUBECONFIG --insecure-skip-tls-verify apply -f k8s/deployment.yaml"
-                // Thêm lệnh để restart deployment, đảm bảo K8s kéo image mới nhất
                 sh "kubectl --kubeconfig=$KUBECONFIG --insecure-skip-tls-verify rollout restart deployment nodejs-web-app"
             }
+        }
+    }
+
+    post {
+        always {
+            // Dọn dẹp sau khi build để tránh đầy ổ cứng VM
+            sh "docker logout"
+            echo "Pipeline đã hoàn thành!"
         }
     }
 }
