@@ -1,10 +1,9 @@
 ---
-- name: Cài đặt Jenkins CI Server với Java 21 (LTS mới nhất)
+- name: Cài đặt Jenkins CI Server với Java 21 và Maven
   hosts: jenkins_azure
   become: yes
 
   vars:
-    # Sử dụng Key 2026 và Java 21
     jenkins_key_path: /usr/share/keyrings/jenkins-keyring.asc
     jenkins_repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
 
@@ -19,7 +18,7 @@
         - /usr/share/keyrings/jenkins-keyring.gpg
         - /usr/share/keyrings/jenkins-keyring.asc
 
-    - name: 2. Cài đặt các gói cơ sở và OpenJDK 21
+    - name: 2. Cài đặt các gói cơ sở, Java 21, Maven và Git
       apt:
         name:
           - curl
@@ -28,7 +27,9 @@
           - ca-certificates
           - apt-transport-https
           - software-properties-common
-          - openjdk-21-jre  # Nâng cấp lên Java 21
+          - openjdk-21-jdk  
+          - maven          
+          - git             
           - docker.io
         state: present
         update_cache: yes
@@ -72,7 +73,16 @@
         groups: docker
         append: yes
 
-    - name: 9. Khởi động lại các dịch vụ để áp dụng thay đổi
+    - name: 9. Kiểm tra phiên bản Maven (Log để xác nhận)
+      command: mvn -version
+      register: mvn_info
+      changed_when: false
+
+    - name: 10. Hiển thị thông tin Maven
+      debug:
+        msg: "{{ mvn_info.stdout_lines[0] }}"
+
+    - name: 11. Khởi động lại các dịch vụ để áp dụng thay đổi
       service:
         name: "{{ item }}"
         state: restarted

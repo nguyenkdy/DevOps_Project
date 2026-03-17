@@ -135,3 +135,99 @@ resource "azurerm_linux_virtual_machine" "jenkins_vm" {
 output "jenkins_ip" {
   value = azurerm_public_ip.jenkins_pip.ip_address
 }
+
+# =============================================================================
+# 5. BỔ SUNG CHO SONARQUBE SERVER
+# =============================================================================
+
+# Public IP cho SonarQube
+resource "azurerm_public_ip" "sonar_pip" {
+  name                = "Sonar-Azure-Server-ip"
+  location            = azurerm_resource_group.jenkins_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_rg.name
+  sku                 = "Standard"
+  allocation_method   = "Static"
+}
+
+# NSG cho SonarQube (Mở thêm port 9000)
+resource "azurerm_network_security_group" "sonar_nsg" {
+  name                = "Sonar-Azure-Server-nsg"
+  location            = azurerm_resource_group.jenkins_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_rg.name
+
+  security_rule {
+    name                       = "AllowSonar9000"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "9000" # Port mặc định của SonarQube
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "AllowSSH"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+# Network Interface cho SonarQube
+resource "azurerm_network_interface" "sonar_nic" {
+  name                = "sonar-nic"
+  location            = azurerm_resource_group.jenkins_rg.location
+  resource_group_name = azurerm_resource_group.jenkins_rg.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.jenkins_subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.sonar_pip.id
+  }
+}
+
+resource "azurerm_network_interface_security_group_association" "sonar_nsg_assoc" {
+  network_interface_id      = azurerm_network_interface.sonar_nic.id
+  network_security_group_id = azurerm_network_security_group.sonar_nsg.id
+}
+
+# VM SonarQube (Khuyên dùng cấu hình có 4GB RAM trở lên)
+resource "azurerm_linux_virtual_machine" "sonar_vm" {
+  name                = "SonarQube-Azure-Server"
+  resource_group_name = azurerm_resource_group.jenkins_rg.name
+  location            = azurerm_resource_group.jenkins_rg.location
+  size                = "Standard_D2als_v6"
+  admin_username      = "azureuser"
+
+  network_interface_ids = [azurerm_network_interface.sonar_nic.id]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = file("~/.ssh/id_rsa.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
+    version   = "latest"
+  }
+}
+
+# Output IP của SonarQube để cấu hình Ansible
+output "sonarqube_ip" {
+  value = azurerm_public_ip.sonar_pip.ip_address
+}
